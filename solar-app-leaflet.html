@@ -2,7 +2,9 @@
 <html>
 <head>
   <meta charset='utf-8' />
-  <title>Solar Panel Price Calculator</title>
+  <title>Solar Panel Output Calculator</title>
+
+  <!-- Leaflet and Leaflet Draw JS Libraries for Mapping and Drawing GeoJSON shapes on Map -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.1/dist/leaflet.css"
   integrity="sha512-Rksm5RenBEKSKFjgI3a41vrjkw4EVPlJ3+OiI65vTjIdo9brlAacEuKOiQ5OFh7cOI1bkDwLqdLw3Zg0cRJAAQ=="
   crossorigin=""/>
@@ -11,16 +13,26 @@
   crossorigin=""></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.2/leaflet.draw.css"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.2/leaflet.draw.js"></script>
+
+  <!-- Boostrap Library for Styling -->
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
-  <script src='https://npmcdn.com/@turf/turf/turf.min.js'></script>
+
+  <!-- TurfJS for calculating area from GeoJSON Shapes -->
+  <script src="https://npmcdn.com/@turf/turf/turf.min.js"></script>
+
+  <!-- Font Awesome for free icons used in search bar -->
   <script defer src="https://use.fontawesome.com/releases/v5.0.6/js/all.js"></script>
 
   <style>
     #map {
       position: absolute;
-      top:0;
-      bottom:0;
-      width:100%; }
+      top: 0;
+      bottom: 0;
+      width: 100%;
+      height: 794px;
+      border-radius: 3px;
+      box-shadow: 0px 7px 5px black;
+    }
     body {
       margin: 0px;
       padding: 0px;
@@ -47,6 +59,7 @@
     }
     #infoPanel {
       background-color: #FFF176;
+      height:685px;
     }
     #param {
       width: 80%;
@@ -62,28 +75,37 @@
       margin-left: 20px;
       box-shadow: 0px 7px 5px black;
     }
+    .customInput {
+      width: 20%;
+      border: 0;
+      border-radius: 3px;
+    }
   </style>
 </head>
 
 <body>
   <div id="title">
-    <h3>Solar Panel Price Calculator</h3>
+    <h2>Solar Panel Output Calculator</h2>
   </div>
 
+  <!-- Container to hold main app functionality -->
   <div id="appWindow">
     <div class="row">
+
+      <!-- Container to hold map -->
       <div class="col-md-8" style="height:800px;">
-          <div id='map' style="height:794px; border-radius:3px; box-shadow: 0px 7px 5px black;"></div>
+          <div id="map"></div>
       </div>
 
       <div class="col-md-4" style="height:800px;">
+        <!-- Search Bar Panel -->
         <div class="card"  id="searchPanel">
           <div class="card-body">
             <div id="custom-search-input">
                 <div class="input-group col-md-12">
-                    <input type="text" class="f input-lg" placeholder="Enter a location..." id="param" />
+                    <input type="text" class="form-control input-lg" placeholder="Enter a location..." id="param" />
                     <span class="input-group-btn">
-                        <button class="btn btn-info btn-lg" type="button" onClick="httpGetAsync(document.getElementById('param').value, moveMap);" id="searchButton">
+                        <button class="btn btn-info btn-lg" type="button" onclick="httpGetAsync(document.getElementById('param').value, moveMap);" id="searchButton">
                             <i class="fas fa-search"></i>
                         </button>
                     </span>
@@ -91,9 +113,21 @@
             </div>
           </div>
         </div>
-        <div class="card" style="height:685px;" id="infoPanel">
+        <!-- Control and Info Panel -->
+        <div class="card" id="infoPanel">
           <div class="card-body" id="infoBox">
-            yooooooooooooooo
+            <h4>Highlight an area in the map to begin.</h4>
+            <h6> Do not overlap selected areas. <h6>
+            </br>
+            <h6>Enter % Panel Coverage:</h6>
+            <input type="text" class="input-lg customInput" value="80" id="coverage" onchange="displayEstimate()"/>
+            <h6>Enter % Panel Efficiency:</h6>
+            <input type="text" class="input-lg customInput" value="20" id="efficiency" onchange="displayEstimate()"/>
+            </br>
+            <a href="">Clear All Selections</a>
+            </div>
+            <div class="card-body" >
+            <h4 id="estimatedOutput"></h4>
           </div>
         </div>
       </div>
@@ -101,7 +135,8 @@
   </div>
 
   <script>
-    var map = L.map('map', {drawControl: true}).setView([51.505, -0.09], 17);
+    // Create a map object with leaflet and attach it to our 'map' html div
+    var map = L.map('map', {drawControl: true}).setView([42.3600825, -71.0588801], 17);
 
     L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
@@ -109,37 +144,41 @@
 
     var area = 0;
 
+    // This listener waits for a shape to be drawn
     map.on('draw:created', function (e) {
-        // Do whatever else you need to. (save to db, add to map etc)
-        map.addLayer(e.layer);
-        console.log(e.layer.toGeoJSON().geometry.coordinates);
-        var polygon = turf.polygon(e.layer.toGeoJSON().geometry.coordinates);
-        area += turf.area(polygon);
-        document.getElementById("infoBox").innerHTML = area;
+        map.addLayer(e.layer); //add shape to map display
+        var polygon = turf.polygon(e.layer.toGeoJSON().geometry.coordinates); //create a new polygon in TurfJS with the same GeoJSON coordinates as our drawn layer
+        area += turf.area(polygon); //calculate area of shape
+        displayEstimate();
 
     });
 
-    function moveMap(res) {
-      //console.log(term)
-      var resJSON = JSON.parse(res);
-      console.log(resJSON);
-      var lat = resJSON.results[0].geometry.location.lat;
-      var lng = resJSON.results[0].geometry.location.lng;
-      console.log(lat, lng);
-      map.panTo(new L.LatLng(lat, lng));
-    };
-
-    function httpGetAsync(term, cb)
-    {
-        var theUrl = "https://maps.googleapis.com/maps/api/geocode/json?address=" + term + "&key=AIzaSyB_L9c5d5kZyo3B1OQ-e020RYGaGSQWNRY"
+    //asynchronous HTTP request for the search bar when looking for a location by name
+    function httpGetAsync(term, cb) {
+        var theUrl = "https://maps.googleapis.com/maps/api/geocode/json?address=" + term + "&key=AIzaSyB_L9c5d5kZyo3B1OQ-e020RYGaGSQWNRY" //connect to google's API for reverse geocoding based on a address
         console.log(theUrl);
         var xmlHttp = new XMLHttpRequest();
         xmlHttp.onreadystatechange = function() {
             if (xmlHttp.readyState == 4 && xmlHttp.status == 200)
-                cb(xmlHttp.responseText);
+                cb(xmlHttp.responseText); //use our callback function which will be the moveMap function
         }
         xmlHttp.open("GET", theUrl, true); // true for asynchronous
         xmlHttp.send(null);
+    }
+
+    //Moves leaflet map to the position from our api request
+    function moveMap(res) {
+      //console.log(term)
+      var resJSON = JSON.parse(res);
+      var lat = resJSON.results[0].geometry.location.lat;
+      var lng = resJSON.results[0].geometry.location.lng;
+      map.panTo(new L.LatLng(lat, lng));
+    };
+
+    //controlls the displaying of information in the information panel based on our estimate, called when either the paramters or layers change
+    function displayEstimate() {
+      var estimateValue = document.getElementById('coverage').value/100 * document.getElementById('efficiency').value/100 * 1000 * area;
+      document.getElementById("estimatedOutput").innerHTML = "Based on your selected area at "+document.getElementById('coverage').value+"% panel coverage and "+document.getElementById('efficiency').value+"% efficiency you could expect to see " + Math.round(estimateValue) + "KW of energy.";
     }
   </script>
 </body>

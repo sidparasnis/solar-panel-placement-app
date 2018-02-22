@@ -1,5 +1,5 @@
-##Solar Panel Output Calculator
-#by Siddharth Parasnis
+# Solar Panel Output Calculator #
+## by Siddharth Parasnis ##
 
 Libraries used:
 * Leaflet - for mapping and
